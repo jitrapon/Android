@@ -1,0 +1,22 @@
+The sequence is.
+
+
+# git add <file or directory tree>
+# git commit -m <comment here> | Insert as first line in message file 
+that editor opens.
+
+If this is a local repository then you are done.  If cloned from a 
+remote master then you need to follow the local commit with a
+
+# git push
+
+To see the current status of the local vs. the remote repository
+
+# git status
+
+To update the local from the remote
+
+# git pull
+
+peepcode.com has an excellent pdf book on git for $9.00, a great value. 
+They also have a screencast on git ($9.00) as does railscasts.com (free)

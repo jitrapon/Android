@@ -2,6 +2,8 @@ package jitrapon.social.postna;
 
 import java.util.concurrent.ExecutionException;
 
+import jitrapon.social.postna.MediaService.LocalBinder;
+
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.appwidget.AppWidgetManager;
@@ -10,23 +12,27 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.provider.MediaStore;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 public class Home extends Activity 
 {
 
 	private static int RESULT_LOAD_IMAGE = 1;
-	private static ConnectionManager cManager;
-
+	private static MediaService mService;	// this is a started service but can be binded and unbinded
+	private boolean isBounded;				// checks whether or not the process is binded to mService
+	private boolean isConnected;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) 
@@ -48,19 +54,53 @@ public class Home extends Activity
 				startActivityForResult(i, RESULT_LOAD_IMAGE);
 			}
 		});
-		cManager = new ConnectionManager();
+
+		// We start the service here
+		startService(new Intent(this, MediaService.class));
 		ConnectivityManager manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo info = manager.getActiveNetworkInfo(); 
 		if (info != null) {
 			// There exists a connection
-			cManager.isConnected = info.isConnected();
+			isConnected = info.isConnected();
 			displayDialogBox("Alert", "You are connected using " + info.getTypeName());
-
 		} else {
 			displayDialogBox("Alert", "You are not connected to the internet!");
 		}
 
 	}
+	
+	@Override
+	protected void onStart() {
+	    super.onStart();
+	    // Do something once activity starts
+		bindService(new Intent(this, MediaService.class), mConnection, BIND_AUTO_CREATE);
+	};
+	
+	@Override
+	protected void onStop() {
+	    super.onStop();
+	    if (isBounded) {
+	        unbindService(mConnection);
+	        isBounded = false;
+	    }
+	};
+
+	private ServiceConnection mConnection = new ServiceConnection() {
+		@Override
+		public void onServiceConnected(ComponentName name, IBinder service) {
+			Toast.makeText(Home.this, "Service is connected", 1000).show();
+			isBounded = true;
+			LocalBinder mLocalBinder = (LocalBinder)service;
+			mService = mLocalBinder.getService();
+		}
+		public void onServiceDisconnected(ComponentName className) {
+			Toast.makeText(Home.this, "Service is disconnected", 1000).show();
+			isBounded = false;
+			mService = null;
+		}
+		
+	};
+
 
 	@Override
 	protected void onActivityResult(int requestCode, int resultCode, Intent data) 
@@ -90,15 +130,10 @@ public class Home extends Activity
 			updateImageWidget(picturePath);
 
 			// Attempt to connect to the server to trigger PHOTO_CHANGE event
-			if (cManager.isConnected) {
-				try {
-					String result = new ConnectionManager().execute(picturePath).get();
-					displayDialogBox("Alert", result);
-				} catch (InterruptedException e) {
-					displayDialogBox("Alert", "Server Offline");
-				} catch (ExecutionException e) {
-					displayDialogBox("Alert", "Server Offline");
-				}
+			// Using MediaService
+			if (isConnected) {
+				String result = mService.sendMessage(picturePath);
+				displayDialogBox("Alert", result); 
 			}
 		}
 	}
@@ -172,4 +207,6 @@ public class Home extends Activity
 		intent.putExtra("picturePath", srcPath);
 		sendBroadcast(intent);
 	}
+	
+	
 }
